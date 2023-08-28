@@ -3,3 +3,7 @@
 ################################################################################
 
 /ButlerCache/.vs
+/ButlerCache/bin/Debug/net6.0
+/ButlerCache/obj
+/CacheTests/bin/Debug/net6.0
+/CacheTests/obj
