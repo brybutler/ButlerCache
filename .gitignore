@@ -7,3 +7,5 @@
 /ButlerCache/obj
 /CacheTests/bin/Debug/net6.0
 /CacheTests/obj
+/.vs
+/CacheTests/bin/Release/net6.0
