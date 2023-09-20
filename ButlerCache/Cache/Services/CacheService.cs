@@ -1,45 +1,39 @@
 ﻿using BryanButler.Cache.Exceptions;
 using BryanButler.Cache.Models;
-using System.Collections.Concurrent;
 namespace BryanButler.Cache.Services;
 public class CacheService
 {
-    protected LinkedList<string> EvictedKeys = new();
-    protected LinkedList<CacheItem> LruCacheList = new();
-    protected ConcurrentDictionary<string, LinkedListNode<CacheItem>> Cache = new();
-    
-    protected bool IsKeyInEvictedList(string key) => EvictedKeys.Contains(key);
+    protected Dictionary<string, CacheItem> CacheDictionary = new();
+    public event EventHandler<ItemRemoval>? OnRemoval;
 
-    protected LinkedListNode<CacheItem> GetCacheItem(string key)
+    private long GetNewOrderNumber()
     {
-        if (Cache.TryGetValue(key, out var cacheItem))
-            return cacheItem;
+        if (CacheDictionary.Any())
+            return CacheDictionary.Max(_ => _.Value.Order) + 1;
 
-        if (EvictedKeys.Contains(key))
-            throw new CacheItemEvictedException(key);
+        return 1;
+    } 
+
+    protected CacheItem GetCacheItem(string key)
+    {
+        if (CacheDictionary.TryGetValue(key, out var cacheItem))
+        {
+            cacheItem.Order = GetNewOrderNumber();
+            return cacheItem;
+        }
 
         throw new CacheItemKeyNotFoundException(key);
     }
 
-    protected bool RemoveCacheItem(LinkedListNode<CacheItem> cacheItem)
-    {
-        if (Cache.TryRemove(cacheItem.Value.CacheKey, out _))
-        {
-            LruCacheList.Remove(cacheItem);
-            return true;
-        }
-
-        return false;
-    }
+    protected bool RemoveByKey(string key) => CacheDictionary.Remove(key);
 
     protected void RemoveLeastRecentlyUsedItem()
     {
-        var cacheItem = LruCacheList.Last;
-        if (cacheItem != null && RemoveCacheItem(cacheItem))
-            EvictedKeys.AddFirst(cacheItem.Value.CacheKey);
+        var cacheItem = CacheDictionary.Values.MinBy(_ => _.Order);
+        if (cacheItem != null && RemoveByKey(cacheItem.CacheKey) && OnRemoval != null)
+            OnRemoval.Invoke(this, new ItemRemoval(cacheItem.CacheKey, cacheItem.CacheType));
     }
 
-    protected LinkedListNode<CacheItem> CreateNewCacheItem(string key, object value) =>
-          new (new CacheItem(key, value, value.GetType().ToString()));
+    protected CacheItem CreateNewCacheItem(string key, object value) => new (key, value, value.GetType().ToString(), GetNewOrderNumber());
 
 }

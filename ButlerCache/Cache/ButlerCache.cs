@@ -1,5 +1,7 @@
 ﻿using BryanButler.Cache.Exceptions;
+using BryanButler.Cache.Models;
 using BryanButler.Cache.Services;
+
 namespace BryanButler.Cache;
 public class ButlerCache : CacheService
 {
@@ -7,62 +9,38 @@ public class ButlerCache : CacheService
     public static ButlerCache Instance => SingletonInstance.Value;
     private ButlerCache() { }
     
-    private readonly object _lock = new();
     private int _capacity = 100;
-    private readonly int _timeout = 100;
+    private readonly object _lock = new();
     public bool Add(string key, object value)
     {
-        bool lockTaken = false;
-        try
+        lock (_lock)
         {
-            Monitor.TryEnter(_lock, _timeout, ref lockTaken);
-            if (lockTaken)
-            {
-                if (Cache.Count >= _capacity)
-                    RemoveLeastRecentlyUsedItem();
+            if (CacheDictionary.Count >= _capacity)
+                RemoveLeastRecentlyUsedItem();
 
-                var newCacheItem = CreateNewCacheItem(key, value);
-                if (Cache.TryAdd(key, newCacheItem))
-                {
-                    if (IsKeyInEvictedList(key))
-                        EvictedKeys.Remove(key);
-
-                    LruCacheList.AddFirst(newCacheItem);
-                    return true;
-                }
-            }
+            return CacheDictionary.TryAdd(key, CreateNewCacheItem(key, value));
         }
-        finally
-        {
-            if (lockTaken)
-                Monitor.Exit(_lock);
-        }
-
-        return false;
     }
 
     public T Get<T>(string key)
     {
-        if (IsKeyInEvictedList(key))
-            throw new CacheItemEvictedException(key);
+        lock (_lock)
+        {
+            var cacheItem = GetCacheItem(key);
+            if (cacheItem == null)
+                throw new CacheItemKeyNotFoundException(key);
 
-        var cacheItem = GetCacheItem(key);
-        if (cacheItem == null)
-            throw new CacheItemKeyNotFoundException(key);
+            var typeOfT = typeof(T).ToString();
+            if (cacheItem.CacheType != typeOfT)
+                throw new CacheItemTypeIsIncorrectException(key, cacheItem.CacheType, typeOfT);
 
-        var typeOfT = typeof(T).ToString();
-        if (cacheItem.Value.CacheType != typeOfT)
-            throw new CacheItemTypeIsIncorrectException(key, cacheItem.Value.CacheType, typeOfT);
-
-        LruCacheList.Remove(cacheItem);
-        LruCacheList.AddFirst(cacheItem);
-
-        return (T)cacheItem.Value.CacheValue;
+            return (T)cacheItem.CacheValue;
+        }
     }
 
-    public bool Remove(string key) => RemoveCacheItem(GetCacheItem(key));
-    public LinkedList<string> GetEvictedKeys() => EvictedKeys;
-    public int RemainingCapacity() => _capacity - LruCacheList.Count;
+    public bool Remove(string key) => RemoveByKey(key);
+
+    public int RemainingCapacity() => _capacity - CacheDictionary.Count;
 
     public void SetCapacity(int newCapacity)
     {
@@ -72,10 +50,5 @@ public class ButlerCache : CacheService
             RemoveLeastRecentlyUsedItem();
     }
 
-    public void Clear()
-    {
-        Cache.Clear();
-        LruCacheList.Clear();
-        EvictedKeys.Clear();
-    }
+    public void Clear() => CacheDictionary.Clear();
 }

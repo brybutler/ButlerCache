@@ -1,10 +1,14 @@
 ﻿using BryanButler.Cache;
+using BryanButler.Cache.Models;
+
 namespace CacheTests.Helpers;
 public class CacheTestHelper
 {
     public string GetUniqueKey() => Guid.NewGuid().ToString();
     public string GetRandomStringValue() => Guid.NewGuid().ToString().Substring(28, 8);
     public int GetRandomIntValue() => new Random().Next(0, 100);
+
+    public List<string> EvictedKeys = new();
 
     public (string key, string value) AddNewStringItemToCache()
     {
@@ -29,6 +33,14 @@ public class CacheTestHelper
         var cache = ButlerCache.Instance;
         cache.Clear();
         cache.SetCapacity(capacity);
+        cache.OnRemoval += ItemEvictionEvent;
+        EvictedKeys.Clear();
         return cache;
     }
+
+    public void ItemEvictionEvent(object? sender, ItemRemoval item)
+    {
+        EvictedKeys.Add(item.Key);
+    }
+
 }

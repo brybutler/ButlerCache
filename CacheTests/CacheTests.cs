@@ -60,14 +60,12 @@ public class CacheTests: CacheTestHelper
     public void Verify_eviction_when_too_many_items_added()
     {
         var cache = ResetCacheForTest(2);
-
+        
         var (keyLru, _) = AddNewStringItemToCache();
-
         var (key2, value2) = AddNewIntItemToCache();
         var (key3, value3) = AddNewStringItemToCache();
-        
-        Assert.Contains(keyLru, cache.GetEvictedKeys());
-        Assert.Throws<CacheItemEvictedException>(() => cache.Get<string>(keyLru));
+
+        Assert.Contains(keyLru, EvictedKeys);
         Assert.Equal(value2, cache.Get<int>(key2));
         Assert.Equal(value3, cache.Get<string>(key3));
     }
@@ -86,10 +84,8 @@ public class CacheTests: CacheTestHelper
 
         cache.SetCapacity(1);
 
-        // assert that least recently used have been evicted by change of capacity
-        Assert.Throws<CacheItemEvictedException>(() => cache.Get<string>(keyLru1));
-        Assert.Throws<CacheItemEvictedException>(() => cache.Get<string>(keyLru2));
-        
+        Assert.Contains(keyLru1, EvictedKeys);
+        Assert.Contains(keyLru2, EvictedKeys);
         Assert.Equal(valueLatest, cache.Get<int>(keyLatest));
     }
     
@@ -122,14 +118,9 @@ public class CacheTests: CacheTestHelper
                  valuesAdded[num] = value;
                  num++;
             });
-        
-        var evictedKeys = cache.GetEvictedKeys();
-        Assert.Equal(2, evictedKeys.Count);
-        Assert.Contains(keyAdded[0], evictedKeys);
-        Assert.Contains(keyAdded[1], evictedKeys);
 
-        Assert.Throws<CacheItemEvictedException>(() => cache.Get<string>(keyAdded[0]));
-        Assert.Throws<CacheItemEvictedException>(() => cache.Get<string>(keyAdded[1]));
+        Assert.Contains(keyAdded[0], EvictedKeys);
+        Assert.Contains(keyAdded[1], EvictedKeys);
         Assert.Equal(valuesAdded[2], cache.Get<string>(keyAdded[2]));
         Assert.Equal(valuesAdded[3], cache.Get<string>(keyAdded[3]));
     }
